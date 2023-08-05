@@ -3,6 +3,7 @@ const Gettext = imports.gettext;
 const Applet = imports.ui.applet;
 const PopupMenu = imports.ui.popupMenu;
 const Gio = imports.gi.Gio;
+const Lang = imports.lang;
 
 const UUID = "WireGuard@Magomedcoder";
 
@@ -17,7 +18,11 @@ const WireGuardApplet = class WireGuardApplet extends Applet.IconApplet {
         this.orientation = orientation;
         this.menuManager = null;
         this.menu = null;
+        this.netMonitor = null;
+        this.netMonitorId = null;
         this.netInterfaces = null;
+        this.wireGuardMonitor = null;
+        this.wireGuardMonitorId = null;
         this.wireGuardInterfaces = null;
     }
 
@@ -47,6 +52,26 @@ const WireGuardApplet = class WireGuardApplet extends Applet.IconApplet {
         }
     }
 
+    onNetChanged() {
+        const interfaces = this.getNetInterfaces();
+        if (!interfaces) {
+            return;
+        }
+        if (!this.netInterfaces.length == interfaces.length && this.netInterfaces.filter(e => interfaces.includes(e)).length == this.netInterfaces.length) {
+            this.netInterfaces = interfaces;
+        }
+    }
+
+    onWireGuardChanged() {
+        const interfaces = this.getWireGuardInterfaces();
+        if (!interfaces) {
+            return;
+        }
+        if (!this.wireGuardInterfaces.length == interfaces.length && this.wireGuardInterfaces.filter(e => interfaces.includes(e)).length == this.wireGuardInterfaces.length) {
+            this.wireGuardInterfaces = interfaces;
+        }
+    }
+
     on_applet_added_to_panel() {
         if (!this.menuManager) {
             this.menuManager = new PopupMenu.PopupMenuManager(this);
@@ -58,6 +83,18 @@ const WireGuardApplet = class WireGuardApplet extends Applet.IconApplet {
         }
         if (!this.wireGuardInterfaces) {
             this.wireGuardInterfaces = this.getWireGuardInterfaces();
+        }
+        if (!this.netMonitor) {
+            this.netMonitor = Gio.network_monitor_get_default();
+            this.netMonitorId = this.netMonitor.connect('network-changed', () => this.onNetChanged());
+        }
+        if (!this.wireGuardMonitor) {
+            let wg_config_path = Gio.file_new_for_path("/etc/wireguard");
+            if (!wg_config_path.query_exists(null)) {
+                return;
+            }
+            this.wireGuardMonitor = wg_config_path.monitor_directory(Gio.FileMonitorFlags.SEND_MOVED, null);
+            this.wireGuardMonitorId = this.wireGuardMonitor.connect('changed', () => this.onWireGuardChanged());
         }
     }
 
@@ -73,6 +110,14 @@ const WireGuardApplet = class WireGuardApplet extends Applet.IconApplet {
         if (this.wireGuardInterfaces) {
             this.wireGuardInterfaces = null;
         }
+        if (this.netMonitor) {
+            this.netMonitor.disconnect(this.netMonitorId);
+            this.netMonitor = null;
+        }
+        if (this.wireGuardMonitor) {
+            this.wireGuardMonitor.disconnect(this.wireGuardMonitorId);
+            this.wireGuardMonitor = null;
+        }
     }
 
     on_applet_clicked() {
@@ -83,8 +128,17 @@ const WireGuardApplet = class WireGuardApplet extends Applet.IconApplet {
 
     on_item_toggled(iface, object, enable) {
         object.setToggleState(!enable);
-        console.log(this.netInterfaces)
-        console.log(this.wireGuardInterfaces)
+        try {
+            const proc = Gio.Subprocess.new(
+                ['pkexec', 'wg-quick', enable ? 'up' : 'down', iface],
+                Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_MERGE | GLib.SpawnFlags.SEARCH_PATH
+            );
+            let out, self = this;
+            proc.get_stdout_pipe().read_bytes_async(1048576, 0, null, Lang.bind(proc, (o, result) => {
+                out = o.read_bytes_finish(result).get_data().toString();
+            }));
+        } catch (e) {
+        }
     }
 
 }
