@@ -1,6 +1,7 @@
 const GLib = imports.gi.GLib;
 const Gettext = imports.gettext;
 const Applet = imports.ui.applet;
+const PopupMenu = imports.ui.popupMenu;
 
 const UUID = "WireGuard@Magomedcoder";
 
@@ -12,24 +13,35 @@ const WireGuardApplet = class WireGuardApplet extends Applet.IconApplet {
         super(orientation, panel_height, instance_id);
         this.set_applet_icon_name("status-off");
         this.set_applet_tooltip(_("WireGuard"));
+        this._orientation = orientation;
+        this._menu_manager = null;
+        this._menu = null;
     }
 
-    on_applet_added_to_panel(userEnabled) {
-        console.log(userEnabled)
+    on_applet_added_to_panel() {
+        if (!this._menu_manager) {
+            this._menu_manager = new PopupMenu.PopupMenuManager(this);
+            this._menu = new Applet.AppletPopupMenu(this, this._orientation);
+            this._menu_manager.addMenu(this._menu);
+        }
     }
 
-    on_applet_removed_from_panel(deleteConfig) {
-        console.log(deleteConfig)
+    on_applet_removed_from_panel() {
+        if (this._menu_manager) {
+            this._menu_manager.removeMenu(this._menu);
+            this._menu = null;
+            this._menu_manager = null;
+        }
     }
 
-    on_applet_clicked(event) {
-        console.log(event)
+    on_applet_clicked() {
+        if (this._menu) {
+            this._menu.toggle();
+        }
     }
 
     on_item_toggled(iface, object, enable) {
-        console.log(iface)
-        console.log(object)
-        console.log(enable)
+        object.setToggleState(!enable);
     }
 
 }
@@ -39,5 +51,5 @@ function _(str) {
 }
 
 function main(metadata, orientation) {
-    new WireGuardApplet(orientation);
+    return new WireGuardApplet(orientation);
 }
