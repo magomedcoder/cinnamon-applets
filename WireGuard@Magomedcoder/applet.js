@@ -4,12 +4,13 @@ const Applet = imports.ui.applet;
 const PopupMenu = imports.ui.popupMenu;
 const Gio = imports.gi.Gio;
 const Lang = imports.lang;
+const ModalDialog = imports.ui.modalDialog;
 
 const UUID = "WireGuard@Magomedcoder";
 
-Gettext.bindtextdomain(UUID, GLib.get_home_dir() + "./local/share/locale");
+Gettext.bindtextdomain(UUID, `${GLib.get_home_dir()}/.local/share/locale`);
 
-const WireGuardApplet = class WireGuardApplet extends Applet.IconApplet {
+class WireGuardApplet extends Applet.IconApplet {
 
     constructor(orientation, panel_height, instance_id) {
         super(orientation, panel_height, instance_id);
@@ -34,6 +35,7 @@ const WireGuardApplet = class WireGuardApplet extends Applet.IconApplet {
             }
             return interfaces;
         } catch (e) {
+            this.handleError(_("Ошибка при чтении сетевых интерфейсов"), e);
             return [];
         }
     }
@@ -48,27 +50,37 @@ const WireGuardApplet = class WireGuardApplet extends Applet.IconApplet {
             }
             return interfaces;
         } catch (e) {
+            this.handleError(_("Ошибка доступа к директории конфигураций WireGuard, убедитесь, что она доступна\n sudo chmod o+r /etc/wireguard или sudo setfacl -m u:username:rx /etc/wireguard"), e);
             return [];
         }
     }
 
-    onNetChanged() {
+    onNetInterfacesChanged() {
         const interfaces = this.getNetInterfaces();
-        if (!interfaces) {
-            return;
-        }
-        if (!this.netInterfaces.length == interfaces.length && this.netInterfaces.filter(e => interfaces.includes(e)).length == this.netInterfaces.length) {
+        if (!interfaces) return
+        if (JSON.stringify(this.netInterfaces) !== JSON.stringify(interfaces)) {
             this.netInterfaces = interfaces;
         }
     }
 
-    onWireGuardChanged() {
+    onWireGuardInterfacesChanged() {
         const interfaces = this.getWireGuardInterfaces();
-        if (!interfaces) {
-            return;
-        }
-        if (!this.wireGuardInterfaces.length == interfaces.length && this.wireGuardInterfaces.filter(e => interfaces.includes(e)).length == this.wireGuardInterfaces.length) {
+        if (!interfaces) return
+        if (JSON.stringify(this.wireGuardInterfaces) !== JSON.stringify(interfaces)) {
             this.wireGuardInterfaces = interfaces;
+        }
+    }
+
+    handleError(msg, details = null, fatal = true) {
+        let formatted = msg;
+        if (details) {
+            formatted += "\n\n" + _("Детали ошибки") + ":\n" + details;
+        }
+        global.logError(formatted);
+        new ModalDialog.NotifyDialog(formatted).open();
+        if (fatal) {
+            this.on_applet_removed_from_panel();
+            this.set_applet_tooltip(msg);
         }
     }
 
@@ -86,15 +98,16 @@ const WireGuardApplet = class WireGuardApplet extends Applet.IconApplet {
         }
         if (!this.netMonitor) {
             this.netMonitor = Gio.network_monitor_get_default();
-            this.netMonitorId = this.netMonitor.connect('network-changed', () => this.onNetChanged());
+            this.netMonitorId = this.netMonitor.connect('network-changed', () => this.onNetInterfacesChanged());
         }
         if (!this.wireGuardMonitor) {
             let wg_config_path = Gio.file_new_for_path("/etc/wireguard");
             if (!wg_config_path.query_exists(null)) {
+                this.handleError(_("Директория конфигураций WireGuard /etc/wireguard не существует, убедитесь, что WireGuard установлен"));
                 return;
             }
             this.wireGuardMonitor = wg_config_path.monitor_directory(Gio.FileMonitorFlags.SEND_MOVED, null);
-            this.wireGuardMonitorId = this.wireGuardMonitor.connect('changed', () => this.onWireGuardChanged());
+            this.wireGuardMonitorId = this.wireGuardMonitor.connect('changed', () => this.onWireGuardInterfacesChanged());
         }
     }
 
@@ -137,7 +150,13 @@ const WireGuardApplet = class WireGuardApplet extends Applet.IconApplet {
             proc.get_stdout_pipe().read_bytes_async(1048576, 0, null, Lang.bind(proc, (o, result) => {
                 out = o.read_bytes_finish(result).get_data().toString();
             }));
+            proc.wait_async(null, Lang.bind(proc, () => {
+                if (proc.get_exit_status()) {
+                    self.handleError(_("Ошибка переключения интерфейса WireGuard"), out, false);
+                }
+            }));
         } catch (e) {
+            this.handleError(_("Ошибка вызова wg-quick, убедитесь, что он установлен и доступен"), e, false);
         }
     }
 
