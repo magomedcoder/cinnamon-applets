@@ -6,7 +6,11 @@ git clone https://github.com/magomedcoder/cinnamon-applets
 cd WireGuard@Magomedcoder
 ```
 
-# Установка расширения
+```sh
+sudo chmod o+r /etc/wireguard 
+```
+
+### Установка расширения
 
 ```
     cp -ar . ~/.local/share/cinnamon/applets/WireGuard@Magomedcoder
