@@ -55,11 +55,32 @@ class WireGuardApplet extends Applet.IconApplet {
         }
     }
 
+    refreshMenu() {
+        if (!this.menu) {
+            return;
+        }
+        this.menu.removeAll();
+        let active = 0;
+        for (let i = 0; i < this.wireGuardInterfaces.length; i++) {
+            const iface = this.wireGuardInterfaces[i];
+            const enabled = this.netInterfaces.includes(iface);
+            if (enabled) {
+                active++;
+            }
+            const item = new PopupMenu.PopupSwitchMenuItem(iface, enabled);
+            item.connect('toggled', (object, value) => this.on_item_toggled(iface, object, value));
+            this.menu.addMenuItem(item);
+        }
+        this.set_applet_icon_name(active > 0 ? "status-on" : "status-off");
+        this.set_applet_tooltip(_("WireGuard"));
+    }
+
     onNetInterfacesChanged() {
         const interfaces = this.getNetInterfaces();
         if (!interfaces) return
         if (JSON.stringify(this.netInterfaces) !== JSON.stringify(interfaces)) {
             this.netInterfaces = interfaces;
+            this.refreshMenu();
         }
     }
 
@@ -68,6 +89,7 @@ class WireGuardApplet extends Applet.IconApplet {
         if (!interfaces) return
         if (JSON.stringify(this.wireGuardInterfaces) !== JSON.stringify(interfaces)) {
             this.wireGuardInterfaces = interfaces;
+            this.refreshMenu();
         }
     }
 
@@ -109,6 +131,7 @@ class WireGuardApplet extends Applet.IconApplet {
             this.wireGuardMonitor = wg_config_path.monitor_directory(Gio.FileMonitorFlags.SEND_MOVED, null);
             this.wireGuardMonitorId = this.wireGuardMonitor.connect('changed', () => this.onWireGuardInterfacesChanged());
         }
+        this.refreshMenu();
     }
 
     on_applet_removed_from_panel() {
