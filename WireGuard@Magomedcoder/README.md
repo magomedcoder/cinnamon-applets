@@ -1,26 +1,42 @@
-## WireGuard
+# WireGuard
 
-```sh
-git clone https://github.com/magomedcoder/cinnamon-applets
+## Установка
 
-cd WireGuard@Magomedcoder
+```bash
+cp -ar WireGuard@Magomedcoder ~/.local/share/cinnamon/applets/
 ```
 
-```sh
-sudo chmod o+r /etc/wireguard 
-# или
-sudo setfacl -m u:username:rx /etc/wireguard
-# Где username - ваше имя пользователя. 
+## Без пароля
+
+```bash
+sudo usermod -aG netdev $USER
+# перелогиниться
+
+sudo cp ~/.local/share/cinnamon/applets/WireGuard@Magomedcoder/wireguard-sudoers /etc/sudoers.d/wireguard-applet
+sudo chmod 440 /etc/sudoers.d/wireguard-applet
 ```
 
-### Установка расширения
+## Доступ к /etc/wireguard
+
+```bash
+sudo setfacl -m u:$(whoami):rx /etc/wireguard
+```
+
+## Зависимости
+
+```bash
 
 ```
-    cp -ar . ~/.local/share/cinnamon/applets/WireGuard@Magomedcoder
+
+## Перезагрузка апплета
+
+```bash
+dbus-send --session --dest=org.Cinnamon.LookingGlass --type=method_call /org/Cinnamon/LookingGlass org.Cinnamon.LookingGlass.ReloadExtension string:'WireGuard@Magomedcoder' string:'APPLET'
 ```
 
-```sh
-# Если у вас не установлен resolvconf, то при активации нового конфига возникнет ошибка "resolvconf: command not found". 
-# Чтобы избежать данной ошибки, установите пакет командой:
-sudo apt install resolvconf
+## Удаление
+
+```bash
+rm -rf ~/.local/share/cinnamon/applets/WireGuard@Magomedcoder
+sudo rm -f /etc/sudoers.d/wireguard-applet
 ```

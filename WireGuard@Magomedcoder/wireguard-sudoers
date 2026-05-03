@@ -1,0 +1,2 @@
+Defaults:netdev !requiretty
+%netdev ALL=(ALL) NOPASSWD: /usr/bin/wg-quick
